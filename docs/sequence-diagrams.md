@@ -84,14 +84,13 @@ When a public Create activity arrives from a followed actor:
 ```mermaid
 sequenceDiagram
     participant RemoteServer as Remote Server
-    participant IntakeWorker as Intake Worker
+    participant App as App
     participant FluxBot as FluxBot
     participant BotContext as BotContext
-    participant FanoutWorker as Fanout Worker
     participant Follower as Follower
 
-    RemoteServer->>IntakeWorker: Public Create activity
-    IntakeWorker->>FluxBot: onPublic(activity)
+    RemoteServer->>App: Public Create activity
+    App->>FluxBot: onPublic(activity)
 
     FluxBot->>BotContext: isFollowing(activity.actor)
 
