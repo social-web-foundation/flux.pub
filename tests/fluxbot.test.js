@@ -1,43 +1,11 @@
 import { describe, it, before, after } from 'node:test'
 import assert from 'node:assert'
-import { createHash } from 'node:crypto'
-import request from 'supertest'
 import as2 from 'activitystrea.ms'
-import { nockSetup, nockFormat, postInbox, nockMessageSignature, getBody, resetInbox, resetBodies } from '@evanp/activitypub-nock'
+import { nockSetup, nockFormat, postInbox, getBody, resetInbox, resetBodies } from '@evanp/activitypub-nock'
 import { getTestDatabaseUrl, cleanupTestDatabase } from './utils/db.js'
+import { sendActivity } from './utils/activities.js'
 import { makeApp } from '@evanp/activitypub-bot'
 import { FluxBot } from '../lib/fluxbot.js'
-
-// Helper to send an Accept activity from a mock remote actor to FluxBot's inbox
-const sendAccept = async (app, username, domain, followActivityId) => {
-  const acceptActivity = {
-    '@context': 'https://www.w3.org/ns/activitystreams',
-    id: nockFormat({ username, domain, type: 'accept', num: Date.now() }),
-    type: 'Accept',
-    actor: nockFormat({ username, domain }),
-    object: followActivityId
-  }
-
-  const inboxUrl = nockFormat({ username: 'flux', domain: 'flux.test', collection: 'inbox' })
-  const body = JSON.stringify(acceptActivity)
-  const digestValue = createHash('sha256').update(body).digest('base64')
-  const contentDigest = `sha-256=:${digestValue}:`
-  const signatureHeaders = await nockMessageSignature({
-    method: 'POST',
-    url: inboxUrl,
-    username,
-    domain,
-    contentDigest
-  })
-
-  return request(app)
-    .post('/user/flux/inbox')
-    .set('Host', new URL(inboxUrl).host)
-    .set('Content-Type', 'application/activity+json')
-    .set('Content-Digest', contentDigest)
-    .set(signatureHeaders)
-    .send(body)
-}
 
 describe('FluxBot initialization', async () => {
   const host = 'flux.test'
@@ -47,9 +15,11 @@ describe('FluxBot initialization', async () => {
   const remote1 = 'remote1.test'
   const remote2 = 'remote2.test'
   const remote3 = 'remote3.test'
+  const remote4 = 'remote4.test'
   const actor1 = 'actor1'
   const actor2 = 'actor2'
   const actor3 = 'actor3'
+  const actor4 = 'actor4'
 
   before(async () => {
     await cleanupTestDatabase()
@@ -58,13 +28,14 @@ describe('FluxBot initialization', async () => {
     nockSetup(remote1)
     nockSetup(remote2)
     nockSetup(remote3)
+    nockSetup(remote4)
   })
 
   after(async () => {
     await cleanupTestDatabase()
   })
 
-  it('can initialize, accept follows, and unfollow on re-initialization', async () => {
+  it('can initialize, accept follows, unfollow on re-initialization, and accept a remote follower', async (t) => {
     let app = null
     try {
       // Create app with 3 sources
@@ -108,8 +79,14 @@ describe('FluxBot initialization', async () => {
       }
 
       // Send Accept for actor1 and actor2, leave actor3 pending
-      const accept1 = await sendAccept(app, actor1, remote1, follow1Activity.id)
-      const accept2 = await sendAccept(app, actor2, remote2, follow2Activity.id)
+      const accept1 = await sendActivity(app, actor1, remote1, {
+        type: 'Accept',
+        object: follow1Activity.id
+      })
+      const accept2 = await sendActivity(app, actor2, remote2, {
+        type: 'Accept',
+        object: follow2Activity.id
+      })
 
       assert.strictEqual(accept1.status, 202, `Accept for actor1: ${accept1.text}`)
       assert.strictEqual(accept2.status, 202, `Accept for actor2: ${accept2.text}`)
@@ -156,6 +133,38 @@ describe('FluxBot initialization', async () => {
       assert.strictEqual(await context.isPendingFollowing(source1), false)
       assert.strictEqual(await context.isPendingFollowing(source2), false)
       assert.strictEqual(await context.isPendingFollowing(source3), false)
+
+      // Receive a Follow from a fourth actor that is not a configured source.
+      const followerId = nockFormat({ username: actor4, domain: remote4 })
+      const follower = await as2.import({ id: followerId })
+      const actor4Inbox = nockFormat({ username: actor4, domain: remote4, collection: 'inbox' })
+      const follow4Id = nockFormat({ username: actor4, domain: remote4, type: 'Follow', num: Date.now() })
+      assert.strictEqual(await context.isFollower(follower), false)
+      const deliveries = t.mock.method(app.locals.client, 'post')
+
+      const follow4 = await sendActivity(app, actor4, remote4, {
+        id: follow4Id,
+        type: 'Follow',
+        object: context.botActorId,
+        to: context.botActorId
+      })
+      assert.strictEqual(follow4.status, 202, `Follow from actor4: ${follow4.text}`)
+      await app.onIdle()
+
+      assert.strictEqual(await context.isFollower(follower), true)
+      assert.strictEqual(await context.isFollowing(follower), false)
+      assert.strictEqual(await context.isPendingFollowing(follower), false)
+
+      // The spy preserves real delivery to the mock remote inbox.
+      const replies = await Promise.all(deliveries.mock.calls
+        .filter(call => call.arguments[0] === actor4Inbox)
+        .map(async call => {
+          await call.result
+          return call.arguments[1].export()
+        }))
+      const accept4 = replies.find(activity => activity.type === 'Accept' && activity.object === follow4Id)
+      assert.ok(accept4, 'Expected an Accept referencing actor4\'s Follow to be delivered to actor4')
+      assert.strictEqual(accept4.actor, context.botActorId)
     } finally {
       if (app) {
         await app.cleanup()
