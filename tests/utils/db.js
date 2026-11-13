@@ -1,3 +1,7 @@
+import { mkdtempSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Sequelize } from 'sequelize'
 import { runMigrations } from '@evanp/activitypub-bot/lib/migrations/index.js'
 
@@ -8,10 +12,22 @@ const SQLITE_MEMORY_ALIASES = new Set([
   ':sqlite::memory:',
   ':sqllite::memory:'
 ])
+let temporaryDatabaseDirectory
 
 export function getTestDatabaseUrl () {
-  const databaseUrl = process.env.TEST_DATABASE_URL || SQLITE_MEMORY_URL
-  return SQLITE_MEMORY_ALIASES.has(databaseUrl) ? SQLITE_MEMORY_URL : databaseUrl
+  const databaseUrl = process.env.TEST_DATABASE_URL
+  if (databaseUrl) {
+    return SQLITE_MEMORY_ALIASES.has(databaseUrl) ? SQLITE_MEMORY_URL : databaseUrl
+  }
+  temporaryDatabaseDirectory ??= mkdtempSync(join(tmpdir(), 'flux-pub-test-'))
+  return `sqlite:${join(temporaryDatabaseDirectory, 'flux.sqlite')}`
+}
+
+export async function removeTestDatabase () {
+  if (temporaryDatabaseDirectory) {
+    await rm(temporaryDatabaseDirectory, { recursive: true, force: true })
+    temporaryDatabaseDirectory = undefined
+  }
 }
 
 export async function cleanupTestDatabase (scope = {}) {
