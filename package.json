@@ -1,0 +1,30 @@
+{
+  "name": "flux.pub",
+  "version": "0.1.0-dev",
+  "description": "ActivityPub aggregation and remix service",
+  "keywords": [
+    "activitypub",
+    "aggregation",
+    "fluxpub",
+    "remix",
+    "channel"
+  ],
+  "homepage": "https://github.com/social-web-foundation/flux.pub#readme",
+  "bugs": {
+    "url": "https://github.com/social-web-foundation/flux.pub/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/social-web-foundation/flux.pub.git"
+  },
+  "license": "AGPL-3.0",
+  "author": "Evan Prodromou <evanp@socialweb.foundation>",
+  "type": "module",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "node --test"
+  }
+}
