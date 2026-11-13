@@ -26,5 +26,9 @@
   },
   "scripts": {
     "test": "node --test"
+  },
+  "devDependencies": {
+    "@evanp/activitypub-bot": "^0.56.2",
+    "@evanp/activitypub-nock": "^2.0.1"
   }
 }
