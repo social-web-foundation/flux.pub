@@ -8,6 +8,7 @@ A server to consolidate all your ActivityPub accounts.
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [FluxBot interface](#fluxbot-interface)
 - [Configuration](#configuration)
 - [Contributing](#contributing)
 - [License](#license)
@@ -46,6 +47,75 @@ npm start
 ```
 
 For detailed usage instructions, please refer to the documentation.
+
+## FluxBot interface
+
+`FluxBot` is a named export from [lib/fluxbot.js](lib/fluxbot.js). It extends
+`Bot` from `@evanp/activitypub-bot` and announces public activities from configured
+source actors to its followers.
+
+### Constructor
+
+`new FluxBot(username, options = {})`
+
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `username` | `string` | Required | The bot's local username. Register the instance under the same username in the activitypub-bot app's `bots` option. |
+| `options` | `object` | `{}` | Source configuration and options passed to the base `Bot` constructor. |
+
+The constructor accepts these options:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `sources` | `string` or `string[]` | `[]` | One source actor or an array of source actors, using any of the formats below. |
+| `fullname` | `string` | `'Bot'` | The bot's display name. |
+| `description` | `string` | `'Default bot'` | The bot's profile description. |
+| `icon` | `URL` or `null` | `null` | The bot's avatar image URL. |
+| `image` | `URL` or `null` | `null` | The bot's header image URL. |
+| `checkSignature` | `boolean` | `true` | Whether the framework requires valid HTTP signatures on incoming activities. |
+
+All options except `sources` are handled by the base `Bot` class.
+
+### Source formats
+
+Each source can use one of these formats. An array can mix formats.
+
+| Format | Example |
+| --- | --- |
+| WebFinger address | `user1@example.social` |
+| WebFinger address with an `acct:` scheme | `acct:user1@example.social` |
+| HTTPS ActivityPub actor ID | `https://example.social/users/user1` |
+
+Use an actor ID for the HTTPS form. WebFinger addresses are resolved to actor IDs
+during initialization.
+
+### Initialization and source changes
+
+The constructor stores configuration. The framework calls the asynchronous
+`initialize(context)` method with a `BotContext` for the same username to establish
+the bot's follows.
+
+On each initialization, FluxBot follows new sources, retains existing accepted or
+pending follows for configured sources, and sends `Undo` activities for accepted
+or pending follows whose actors are no longer configured. To change sources,
+create a new instance with the updated configuration and restart the app using
+the same database. Omitting `sources`, or supplying an empty array, removes all
+previous source follows during initialization.
+
+A source must accept the bot's Follow before its activities are announced.
+
+### Announcements
+
+The framework calls `onPublic(activity)` with an Activity Streams activity.
+FluxBot announces public activities from followed sources, including `Create`,
+`Update`, `Delete`, `Announce`, and `Like`. The outgoing `Announce` references the
+incoming activity's ID; for a `Create` activity, it references the `Create` rather
+than the contained object.
+
+FluxBot skips followers-only activities and quiet public activities. An activity
+is quiet public when `Public` appears in `cc` but in neither `to` nor `audience`.
+It also skips activities it has already announced and `Announce` chains that
+contain one of its own announcements.
 
 ## Configuration
 
