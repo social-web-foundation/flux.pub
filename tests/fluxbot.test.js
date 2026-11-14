@@ -303,4 +303,48 @@ describe('FluxBot', () => {
     assert.deepStrictEqual(receivedAnnouncements, expectedAnnouncements,
       'Each public activity should be announced to actor3 by its own ID; followers-only activities should not')
   })
+
+  it('does not announce a quiet public Create Note activity', async (t) => {
+    const { app, context } = await makeTestApp(t, sources.slice(0, 2))
+    await acceptSourceFollows(app)
+    const source = await as2.import({ id: sources[0] })
+    const follower = await as2.import({ id: sources[2] })
+    assert.strictEqual(await context.isFollowing(source), true)
+
+    const follow = await sendActivity(app, actor3, remote3, {
+      type: 'Follow',
+      object: context.botActorId,
+      to: context.botActorId
+    })
+    assert.strictEqual(follow.status, 202, `Follow from actor3: ${follow.text}`)
+    await app.onIdle()
+    assert.strictEqual(await context.isFollower(follower), true)
+
+    const activityId = nockFormat({ username: actor1, domain: remote1, type: 'Create', num: 1 })
+    const to = [nockFormat({ username: actor1, domain: remote1, collection: 'followers' })]
+    const cc = ['https://www.w3.org/ns/activitystreams#Public']
+    const inboxCount = postInbox[actor3]
+    const response = await sendActivity(app, actor1, remote1, {
+      id: activityId,
+      type: 'Create',
+      to,
+      cc,
+      object: {
+        id: nockFormat({ username: actor1, domain: remote1, type: 'Note', num: 1 }),
+        type: 'Note',
+        attributedTo: source.id,
+        content: 'Quiet public note',
+        to,
+        cc
+      }
+    })
+    assert.strictEqual(response.status, 202, `Quiet public Create: ${response.text}`)
+    await app.onIdle()
+
+    const activity = await as2.import({ id: activityId })
+    assert.strictEqual(await context.getLastActivity('Announce', activity), null,
+      'Quiet public Create should not generate an Announce')
+    assert.strictEqual(postInbox[actor3], inboxCount,
+      'Quiet public Create should cause no delivery to actor3')
+  })
 })
