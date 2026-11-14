@@ -121,6 +121,36 @@ describe('FluxBot', () => {
     assert.strictEqual(await context.isPendingFollowing(source3), true)
   })
 
+  it('accepts WebFinger addresses and HTTPS actor IDs in the same source list', async (t) => {
+    const { app, context } = await makeTestApp(t, [
+      `${actor1}@${remote1}`,
+      sources[1]
+    ])
+    const actors = await Promise.all(
+      sources.slice(0, 2).map(id => as2.import({ id }))
+    )
+
+    for (const [actor, inbox, source] of [
+      [actor1, actor1Inbox, actors[0]],
+      [actor2, actor2Inbox, actors[1]]
+    ]) {
+      assert.strictEqual(postInbox[actor], 1, `Expected a Follow to be sent to ${actor}`)
+      const follow = JSON.parse(getBody(inbox))
+      assert.strictEqual(follow.type, 'Follow')
+      assert.strictEqual(follow.actor, context.botActorId)
+      assert.strictEqual(follow.object, source.id)
+      assert.strictEqual(await context.isFollowing(source), false)
+      assert.strictEqual(await context.isPendingFollowing(source), true)
+    }
+
+    await acceptSourceFollows(app)
+
+    for (const source of actors) {
+      assert.strictEqual(await context.isFollowing(source), true)
+      assert.strictEqual(await context.isPendingFollowing(source), false)
+    }
+  })
+
   it('restarts the app with the same database and undoes removed accepted and pending Follows', async (t) => {
     const databaseDirectory = databaseUrl === 'sqlite::memory:'
       ? await mkdtemp(join(tmpdir(), 'flux-reinitialize-'))
