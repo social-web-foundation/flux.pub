@@ -216,7 +216,7 @@ describe('FluxBot', () => {
     assert.strictEqual(accept4.actor, context.botActorId)
   })
 
-  it('announces public notes from both sources to followers without announcing followers-only notes', async (t) => {
+  it('announces public Create, Delete, Update, Announce, and Like activities from sources without announcing followers-only activities', async (t) => {
     const { app, context } = await makeTestApp(t, sources.slice(0, 2))
     await acceptSourceFollows(app)
     const [source1, source2, follower] = await Promise.all(
@@ -237,56 +237,70 @@ describe('FluxBot', () => {
     const publicAudience = 'https://www.w3.org/ns/activitystreams#Public'
     const firstSourceFollowers = nockFormat({ username: actor1, domain: remote1, collection: 'followers' })
     const secondSourceFollowers = nockFormat({ username: actor2, domain: remote2, collection: 'followers' })
-    const firstPublicNoteId = nockFormat({ username: actor1, domain: remote1, type: 'Note', num: 1 })
-    const secondPublicNoteId = nockFormat({ username: actor2, domain: remote2, type: 'Note', num: 2 })
-    const privateNoteId = nockFormat({ username: actor1, domain: remote1, type: 'Note', num: 3 })
     const deliveries = t.mock.method(app.locals.client, 'post')
     const receivedAnnouncements = []
+    const expectedAnnouncements = []
 
-    for (const [username, domain, num, noteId, to, cc] of [
-      [actor1, remote1, 1, firstPublicNoteId, publicAudience, [firstSourceFollowers]],
-      [actor2, remote2, 2, secondPublicNoteId, publicAudience, [secondSourceFollowers]],
-      [actor1, remote1, 3, privateNoteId, firstSourceFollowers, []]
+    for (const [username, domain, num, to, cc] of [
+      [actor1, remote1, 1, publicAudience, [firstSourceFollowers]],
+      [actor2, remote2, 2, publicAudience, [secondSourceFollowers]],
+      [actor1, remote1, 3, firstSourceFollowers, []]
     ]) {
-      const previousCalls = deliveries.mock.callCount()
-      const inboxCount = postInbox[actor3]
-      const response = await sendActivity(app, username, domain, {
-        id: nockFormat({ username, domain, type: 'Create', num }),
-        type: 'Create',
+      const note = {
+        id: nockFormat({ username, domain, type: 'Note', num }),
+        type: 'Note',
+        attributedTo: nockFormat({ username, domain }),
+        content: `Note ${num} from ${username}`,
         to,
-        cc,
-        object: {
-          id: noteId,
-          type: 'Note',
-          attributedTo: nockFormat({ username, domain }),
-          content: `Note ${num} from ${username}`,
+        cc
+      }
+
+      for (const activity of [
+        { type: 'Create', object: note },
+        { type: 'Update', object: { ...note, content: `Updated note ${num} from ${username}` } },
+        { type: 'Announce', object: note.id },
+        { type: 'Like', object: note.id },
+        { type: 'Delete', object: { id: note.id, type: 'Tombstone', formerType: 'Note' } }
+      ]) {
+        const activityId = nockFormat({ username, domain, type: activity.type, num })
+        const previousCalls = deliveries.mock.callCount()
+        const inboxCount = postInbox[actor3]
+        const response = await sendActivity(app, username, domain, {
+          ...activity,
+          id: activityId,
           to,
           cc
+        })
+        assert.strictEqual(response.status, 202, `${activity.type} from ${username}: ${response.text}`)
+        await app.onIdle()
+
+        const replies = await Promise.all(deliveries.mock.calls
+          .slice(previousCalls)
+          .filter(call => call.arguments[0] === actor3Inbox)
+          .map(async call => {
+            await call.result
+            return call.arguments[1].export()
+          }))
+        receivedAnnouncements.push({
+          activity: activityId,
+          announcements: replies
+            .filter(reply => reply.type === 'Announce')
+            .map(reply => ({ actor: reply.actor, object: reply.object }))
+        })
+        expectedAnnouncements.push({
+          activity: activityId,
+          announcements: to === publicAudience
+            ? [{ actor: context.botActorId, object: activityId }]
+            : []
+        })
+
+        if (to !== publicAudience) {
+          assert.strictEqual(postInbox[actor3], inboxCount, `Followers-only ${activity.type} should cause no delivery to actor3`)
         }
-      })
-      assert.strictEqual(response.status, 202, `Create for ${noteId}: ${response.text}`)
-      await app.onIdle()
-
-      const replies = await Promise.all(deliveries.mock.calls
-        .slice(previousCalls)
-        .filter(call => call.arguments[0] === actor3Inbox)
-        .map(async call => {
-          await call.result
-          return call.arguments[1].export()
-        }))
-      receivedAnnouncements.push(replies
-        .filter(activity => activity.type === 'Announce')
-        .map(activity => ({ actor: activity.actor, object: activity.object })))
-
-      if (noteId === privateNoteId) {
-        assert.strictEqual(postInbox[actor3], inboxCount, 'Followers-only note should cause no delivery to actor3')
       }
     }
 
-    assert.deepStrictEqual(receivedAnnouncements, [
-      [{ actor: context.botActorId, object: firstPublicNoteId }],
-      [{ actor: context.botActorId, object: secondPublicNoteId }],
-      []
-    ], 'Each public note should be announced to actor3; the followers-only note should not')
+    assert.deepStrictEqual(receivedAnnouncements, expectedAnnouncements,
+      'Each public activity should be announced to actor3 by its own ID; followers-only activities should not')
   })
 })
