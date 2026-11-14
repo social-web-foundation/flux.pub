@@ -347,4 +347,71 @@ describe('FluxBot', () => {
     assert.strictEqual(postInbox[actor3], inboxCount,
       'Quiet public Create should cause no delivery to actor3')
   })
+
+  it('does not announce a source announcement wrapping its own Announce', async (t) => {
+    const { app, context } = await makeTestApp(t, [sources[0]])
+    const peer = await as2.import({ id: sources[0] })
+    const initialFollow = JSON.parse(getBody(actor1Inbox))
+    const accept = await sendActivity(app, actor1, remote1, {
+      type: 'Accept',
+      object: initialFollow.id
+    })
+    assert.strictEqual(accept.status, 202, `Accept from peer: ${accept.text}`)
+
+    const follow = await sendActivity(app, actor1, remote1, {
+      type: 'Follow',
+      object: context.botActorId,
+      to: context.botActorId
+    })
+    assert.strictEqual(follow.status, 202, `Follow from peer: ${follow.text}`)
+    await app.onIdle()
+    assert.strictEqual(await context.isFollowing(peer), true)
+    assert.strictEqual(await context.isFollower(peer), true)
+
+    const publicAudience = 'https://www.w3.org/ns/activitystreams#Public'
+    const firstAnnounceId = nockFormat({ username: actor1, domain: remote1, type: 'Announce', num: 1 })
+    const firstAnnounce = await sendActivity(app, actor1, remote1, {
+      id: firstAnnounceId,
+      type: 'Announce',
+      to: publicAudience,
+      object: {
+        id: nockFormat({ username: actor1, domain: remote1, type: 'Note', num: 1 }),
+        type: 'Note',
+        attributedTo: peer.id,
+        content: 'Original note',
+        to: publicAudience
+      }
+    })
+    assert.strictEqual(firstAnnounce.status, 202, `First Announce from peer: ${firstAnnounce.text}`)
+    await app.onIdle()
+
+    const ownAnnounce = JSON.parse(getBody(actor1Inbox))
+    assert.strictEqual(ownAnnounce.type, 'Announce')
+    assert.strictEqual(ownAnnounce.actor, context.botActorId)
+    assert.strictEqual(ownAnnounce.object, firstAnnounceId)
+    assert.ok(ownAnnounce.id)
+
+    const deliveries = t.mock.method(app.locals.client, 'post')
+    const returningAnnounceId = nockFormat({ username: actor1, domain: remote1, type: 'Announce', num: 2 })
+    const returningAnnounce = await sendActivity(app, actor1, remote1, {
+      id: returningAnnounceId,
+      type: 'Announce',
+      to: publicAudience,
+      object: ownAnnounce
+    })
+    assert.strictEqual(returningAnnounce.status, 202, `Returning Announce from peer: ${returningAnnounce.text}`)
+    await app.onIdle()
+
+    const replies = await Promise.all(deliveries.mock.calls
+      .filter(call => call.arguments[0] === actor1Inbox)
+      .map(async call => {
+        await call.result
+        return call.arguments[1].export()
+      }))
+    assert.deepStrictEqual(replies.filter(activity => activity.type === 'Announce'), [],
+      'An announcement wrapping the bot\'s own Announce must not be announced back to the peer')
+    const activity = await as2.import({ id: returningAnnounceId })
+    assert.strictEqual(await context.getLastActivity('Announce', activity), null,
+      'The returning announcement must not generate another Announce')
+  })
 })
