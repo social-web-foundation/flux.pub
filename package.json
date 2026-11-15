@@ -1,6 +1,6 @@
 {
   "name": "flux.pub",
-  "version": "0.1.0",
+  "version": "0.1.1-dev",
   "description": "ActivityPub aggregation and remix service",
   "keywords": [
     "activitypub",
