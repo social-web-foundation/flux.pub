@@ -74,6 +74,18 @@ The default configuration path is set by `BOTS_CONFIG_FILE`; override that
 environment variable to use a different path. The framework also accepts `PORT`,
 `LOG_LEVEL`, and its other environment settings.
 
+### Continuous integration and releases
+
+The [GitHub Actions workflow](.github/workflows/main.yml) lints the workflow and
+runs `npm ci` and `npm test` on pushes to `main` and version tags such as `v1.2.3`.
+
+Version tags also build an image for AMD64 and ARM64 and push it to
+`ghcr.io/social-web-foundation/flux.pub`, tagged with the full commit SHA. The
+workflow runs that image by its digest with a mounted test configuration and
+checks `/readyz`. After the smoke test passes, it adds the major, major.minor, and
+major.minor.patch tags to the same image digest. For example, `v1.2.3` publishes
+`1`, `1.2`, and `1.2.3`.
+
 ## FluxBot interface
 
 `FluxBot` is a named export from [lib/fluxbot.js](lib/fluxbot.js). It extends

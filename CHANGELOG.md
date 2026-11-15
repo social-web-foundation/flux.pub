@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Integration tests covering initialization, restart with the same database, external follows, activity delivery, source formats, quiet public activities, and announcement loops, using RFC 9421 message signatures.
 - README documentation for the `FluxBot` interface, milestone user stories, and Mermaid class and sequence diagrams.
 - Docker image based on `activitypub-bot`, with `FluxBot` available at `/opt/flux.pub/fluxbot.js` and a mountable bots configuration at `/etc/bots.js`.
+- GitHub Actions workflow that tests `main` and version-tag pushes, builds multi-platform images in GHCR tagged by commit SHA, smoke tests `/readyz`, and promotes the tested image to semantic version tags.
 
 ### Changed
 
