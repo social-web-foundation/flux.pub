@@ -51,7 +51,7 @@ For detailed usage instructions, please refer to the documentation.
 ### Docker
 
 Build the image with `docker build --tag flux.pub .`. It uses
-`ghcr.io/evanp/activitypub-bot:0.56.2` and inherits the base image's
+`ghcr.io/evanp/activitypub-bot` and inherits the base image's
 `activitypub-bot` startup command.
 
 Mount a `bots.js` ES module at `/etc/bots.js`. Its default export must be the

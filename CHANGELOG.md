@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Upgrade `@evanp/activitypub-bot` to deal with some signature errors.
+
 ## [0.1.0] - 2026-11-15
 
 ### Added
