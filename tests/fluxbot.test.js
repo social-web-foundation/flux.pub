@@ -246,6 +246,63 @@ describe('FluxBot', () => {
     assert.strictEqual(accept4.actor, context.botActorId)
   })
 
+  it('ignores a public Create with no object without throwing', async (t) => {
+    const { app, context } = await makeTestApp(t, sources.slice(0, 2))
+    await acceptSourceFollows(app)
+    const handler = t.mock.method(app.locals.bots.flux, 'onPublic')
+    const announcements = t.mock.method(context, 'announceObject')
+
+    const response = await sendActivity(app, actor1, remote1, {
+      id: nockFormat({ username: actor1, domain: remote1, type: 'Create', num: 1 }),
+      type: 'Create',
+      to: 'https://www.w3.org/ns/activitystreams#Public'
+    })
+    assert.strictEqual(response.status, 202, `Create without an object: ${response.text}`)
+    await app.onIdle()
+
+    assert.strictEqual(handler.mock.callCount(), 1)
+    await assert.doesNotReject(handler.mock.calls[0].result)
+    assert.strictEqual(announcements.mock.callCount(), 0)
+  })
+
+  it('announces the Note rather than its Create activity to followers', async (t) => {
+    const { app, context } = await makeTestApp(t, sources.slice(0, 2))
+    await acceptSourceFollows(app)
+
+    const follow = await sendActivity(app, actor3, remote3, {
+      type: 'Follow',
+      object: context.botActorId,
+      to: context.botActorId
+    })
+    assert.strictEqual(follow.status, 202, `Follow from actor3: ${follow.text}`)
+    await app.onIdle()
+
+    const publicAudience = 'https://www.w3.org/ns/activitystreams#Public'
+    const createId = nockFormat({ username: actor1, domain: remote1, type: 'Create', num: 1 })
+    const noteId = nockFormat({ username: actor1, domain: remote1, type: 'Note', num: 1 })
+    const inboxCount = postInbox[actor3]
+    const response = await sendActivity(app, actor1, remote1, {
+      id: createId,
+      type: 'Create',
+      to: publicAudience,
+      object: {
+        id: noteId,
+        type: 'Note',
+        attributedTo: sources[0],
+        content: 'A public note from a source',
+        to: publicAudience
+      }
+    })
+    assert.strictEqual(response.status, 202, `Create from actor1: ${response.text}`)
+    await app.onIdle()
+
+    assert.strictEqual(postInbox[actor3], inboxCount + 1)
+    const announcement = JSON.parse(getBody(actor3Inbox))
+    assert.strictEqual(announcement.type, 'Announce')
+    assert.strictEqual(announcement.actor, context.botActorId)
+    assert.strictEqual(announcement.object, noteId, 'The Announce must target the Note rather than the Create')
+  })
+
   it('announces public Create, Delete, Update, Announce, and Like activities from sources without announcing followers-only activities', async (t) => {
     const { app, context } = await makeTestApp(t, sources.slice(0, 2))
     await acceptSourceFollows(app)
@@ -320,7 +377,7 @@ describe('FluxBot', () => {
         expectedAnnouncements.push({
           activity: activityId,
           announcements: to === publicAudience
-            ? [{ actor: context.botActorId, object: activityId }]
+            ? [{ actor: context.botActorId, object: activity.type === 'Create' ? note.id : activityId }]
             : []
         })
 
@@ -331,7 +388,7 @@ describe('FluxBot', () => {
     }
 
     assert.deepStrictEqual(receivedAnnouncements, expectedAnnouncements,
-      'Each public activity should be announced to actor3 by its own ID; followers-only activities should not')
+      'Public Creates should announce their Notes, other public activities should announce their own IDs, and followers-only activities should not be announced')
   })
 
   it('does not announce a quiet public Create Note activity', async (t) => {

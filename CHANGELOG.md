@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Announce the object of public `Create` activities and deduplicate by that
+  object's ID, allowing Mastodon to recognize boosts of locally authored Notes.
+- Ignore public `Create` activities with no object without throwing an exception.
+
 ## [0.1.1] - 2026-11-15
 
 ### Changed
