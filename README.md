@@ -48,6 +48,32 @@ npm start
 
 For detailed usage instructions, please refer to the documentation.
 
+### Docker
+
+Build the image with `docker build --tag flux.pub .`. It uses
+`ghcr.io/evanp/activitypub-bot:0.56.2` and inherits the base image's
+`activitypub-bot` startup command.
+
+Mount a `bots.js` ES module at `/etc/bots.js`. Its default export must be the
+framework's bot map, with each instance registered under its username. In this
+module, import `FluxBot` from `/opt/flux.pub/fluxbot.js`.
+
+For example, run the image with a mounted configuration and a persistent SQLite
+database:
+
+```sh
+docker run --rm --publish 9000:9000 \
+  --mount type=bind,src="$(pwd)/bots.js",dst=/etc/bots.js,readonly \
+  --mount type=volume,src=flux-pub-data,dst=/data \
+  --env ORIGIN=https://flux.example \
+  --env DATABASE_URL=sqlite:/data/flux.sqlite \
+  flux.pub
+```
+
+The default configuration path is set by `BOTS_CONFIG_FILE`; override that
+environment variable to use a different path. The framework also accepts `PORT`,
+`LOG_LEVEL`, and its other environment settings.
+
 ## FluxBot interface
 
 `FluxBot` is a named export from [lib/fluxbot.js](lib/fluxbot.js). It extends
