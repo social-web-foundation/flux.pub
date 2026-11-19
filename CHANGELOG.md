@@ -8,9 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-18
+
 ### Changed
 
-- Updated activitypub-bot
+- Upgrade `@evanp/activitypub-bot` and the Docker base image from 0.56.3 to
+  0.57.1, including automatic bot profile synchronization and HTTP signature
+  interoperability fixes.
 
 ## [0.1.2] - 2026-11-15
 
@@ -49,7 +53,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Skip activities the bot has already announced.
 - Prevent announcement loops whose `Announce` chain contains one of the bot's own announcements.
 
-[Unreleased]: https://github.com/social-web-foundation/flux.pub/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/social-web-foundation/flux.pub/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/social-web-foundation/flux.pub/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/social-web-foundation/flux.pub/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/social-web-foundation/flux.pub/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/social-web-foundation/flux.pub/releases/tag/v0.1.0

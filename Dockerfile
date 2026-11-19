@@ -1,4 +1,4 @@
-FROM ghcr.io/evanp/activitypub-bot:0.56.3
+FROM ghcr.io/evanp/activitypub-bot:0.57.1
 
 COPY lib/fluxbot.js /usr/local/lib/node_modules/@evanp/activitypub-bot/lib/fluxbot.js
 
