@@ -241,9 +241,12 @@ describe('FluxBot', () => {
         await call.result
         return call.arguments[1].export()
       }))
-    const accept4 = replies.find(activity => activity.type === 'Accept' && activity.object === follow4Id)
-    assert.ok(accept4, 'Expected an Accept referencing actor4\'s Follow to be delivered to actor4')
+    const accept4 = replies.find(activity => activity.type === 'Accept' && activity.object?.id === follow4Id)
+    assert.ok(accept4, 'Expected an Accept embedding actor4\'s Follow to be delivered to actor4')
     assert.strictEqual(accept4.actor, context.botActorId)
+    assert.strictEqual(accept4.object.type, 'Follow')
+    assert.strictEqual(accept4.object.actor, followerId)
+    assert.strictEqual(accept4.object.object, context.botActorId)
   })
 
   it('ignores a public Create with no object without throwing', async (t) => {
