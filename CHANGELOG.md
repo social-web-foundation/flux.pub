@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Upgrade `@evanp/activitypub-bot`, `@evanp/activitypub-nock`, `activitystrea.ms`,
   and the Docker base image.
 
+### Fixed
+
+- Move source discovery and follow reconciliation to `initializeNetwork()` so
+  startup federation runs after the HTTP server starts listening.
+
 ## [0.3.2] - 2026-11-24
 
 ### Fixed

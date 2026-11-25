@@ -69,6 +69,8 @@ describe('FluxBot', () => {
       return cleanupPromise
     }
     t.after(close)
+    await app.startWorkers()
+    await app.initializeNetwork()
     await app.onIdle()
     return { app, context: fluxBot._context, close }
   }
@@ -87,6 +89,34 @@ describe('FluxBot', () => {
     }
     await app.onIdle()
   }
+
+  it('defers source reconciliation until network initialization', async (t) => {
+    const fluxBot = new FluxBot('flux', { sources })
+    const app = await makeApp({
+      databaseUrl,
+      origin,
+      bots: { flux: fluxBot },
+      logLevel: 'silent',
+      allowPrivateNetworkRequests: true,
+      deliveryWorkerCount: databaseUrl.startsWith('sqlite:') ? 1 : undefined
+    })
+    t.after(() => app.cleanup())
+    const sourceActors = await Promise.all(sources.map(id => as2.import({ id })))
+
+    for (const source of sourceActors) {
+      assert.strictEqual(await fluxBot._context.isPendingFollowing(source), false,
+        'Source follows should wait for network initialization')
+    }
+
+    await app.startWorkers()
+    await app.initializeNetwork()
+    await app.onIdle()
+
+    for (const source of sourceActors) {
+      assert.strictEqual(await fluxBot._context.isPendingFollowing(source), true,
+        'Network initialization should follow each configured source')
+    }
+  })
 
   it('initializes configured sources and processes their Accepts', async (t) => {
     const { app, context } = await makeTestApp(t)
