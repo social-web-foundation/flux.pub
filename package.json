@@ -28,9 +28,9 @@
     "test": "node --test"
   },
   "devDependencies": {
-    "@evanp/activitypub-bot": "^0.58.1",
-    "@evanp/activitypub-nock": "^2.0.1",
-    "activitystrea.ms": "^4.1.1",
+    "@evanp/activitypub-bot": "^0.59.0",
+    "@evanp/activitypub-nock": "^2.1.1",
+    "activitystrea.ms": "^4.1.2",
     "supertest": "^7.3.2"
   },
   "allowScripts": {
